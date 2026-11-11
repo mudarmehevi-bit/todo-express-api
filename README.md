@@ -1,11 +1,32 @@
-# RESTful To-Do API
+# Full-Stack To-Do Application
 
-A RESTful To-Do API built using Node.js, Express, and a JSON file for data persistence.
+A full-stack to-do application featuring an Express RESTful API with local JSON file persistence and an interactive React client frontend.
 
-## Endpoints
+## Architecture & Features
+- **Backend**: Node.js & Express API with CORS support and JSON persistence.
+- **Frontend**: React (Vite) client providing a responsive UI to create, edit, toggle, and delete tasks with automatic state refresh.
+- **Data Store**: `todos.json`
 
-- `GET /todos` - Fetch all todos
-- `GET /todos/:id` - Fetch a single todo by ID
-- `POST /todos` - Create a new todo item (JSON body: `{"title": "Sample Task", "completed": false}`)
-- `PUT /todos/:id` - Update an existing todo (JSON body: `{"title": "Updated Task", "completed": true}`)
-- `DELETE /todos/:id` - Delete a todo by ID
+## API Endpoints
+
+- `GET /todos` - Fetch all to-do items
+- `GET /todos/:id` - Fetch a single to-do item by ID
+- `POST /todos` - Create a new to-do item (Body: `{"title": "Task name"}`)
+- `PATCH /todos/:id` - Update an item's title or completed state (Body: `{"title": "...", "completed": true}`)
+- `PUT /todos/:id` - Replace/fully update an existing to-do
+- `DELETE /todos/:id` - Remove a to-do item by ID
+
+## Running the Application Locally
+
+### 1. Start Backend Server
+```bash
+npm install
+node server.js
+```
+
+### 2. Start Frontend Client
+```bash
+cd client
+npm install
+npm run dev
+```
