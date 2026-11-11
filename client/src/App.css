@@ -151,3 +151,9 @@ h1 {
   color: #9ca3af;
   padding: 20px;
 }
+.loading-state {
+  text-align: center;
+  color: #9ca3af;
+  padding: 24px;
+  font-size: 16px;
+}
