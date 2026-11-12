@@ -1,32 +1,13 @@
-# Full-Stack To-Do Application
+# To-Do Express API & React Frontend
 
-A full-stack to-do application featuring an Express RESTful API with local JSON file persistence and an interactive React client frontend.
+A full-stack To-Do list application built with Node.js, Express, SQLite (`better-sqlite3`), and React.
 
-## Architecture & Features
-- **Backend**: Node.js & Express API with CORS support and JSON persistence.
-- **Frontend**: React (Vite) client providing a responsive UI to create, edit, toggle, and delete tasks with automatic state refresh.
-- **Data Store**: `todos.json`
+## Features
+- **RESTful API** built with Express.js supporting full CRUD (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`).
+- **SQLite Persistence** using `better-sqlite3` with automatic database (`todos.db`) and table initialization.
+- **Parameterized SQL Queries** to prevent SQL injection and clean database connection closure on shutdown.
+- **React Frontend** with dynamic state updates, loading states, error handling, and inline editing.
 
-## API Endpoints
-
-- `GET /todos` - Fetch all to-do items
-- `GET /todos/:id` - Fetch a single to-do item by ID
-- `POST /todos` - Create a new to-do item (Body: `{"title": "Task name"}`)
-- `PATCH /todos/:id` - Update an item's title or completed state (Body: `{"title": "...", "completed": true}`)
-- `PUT /todos/:id` - Replace/fully update an existing to-do
-- `DELETE /todos/:id` - Remove a to-do item by ID
-
-## Running the Application Locally
-
-### 1. Start Backend Server
-```bash
-npm install
-node server.js
-```
-
-### 2. Start Frontend Client
-```bash
-cd client
-npm install
-npm run dev
-```
+## Setup & Installation
+1. **Backend:** Run `npm install` and `node server.js` in the root folder. The API runs on `http://localhost:5000` and stores tasks in `todos.db`.
+2. **Frontend:** Run `cd client`, `npm install`, and `npm run dev`. The React app runs on `http://localhost:5173`.
