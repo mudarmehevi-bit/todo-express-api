@@ -1,132 +1,174 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
+const Database = require('better-sqlite3');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const DATA_FILE = path.join(__dirname, 'todos.json');
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Helper function to read todos
-const readTodos = () => {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, '[]', 'utf8');
-      return [];
-    }
-    const data = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(data || '[]');
-  } catch (err) {
-    console.error('Error reading todos:', err);
-    return [];
-  }
-};
+// 1. Initialize SQLite database & create table on server start
+const dbPath = path.join(__dirname, 'todos.db');
+const db = new Database(dbPath);
 
-// Helper function to write todos
-const writeTodos = (todos) => {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(todos, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing todos:', err);
-  }
-};
+// Enable WAL mode for better performance
+db.pragma('journal_mode = WAL');
 
-// Root route
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the RESTful To-Do API' });
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
+// Helper to convert SQLite integer (0/1) to boolean for React frontend compatibility
+const formatTodo = (row) => ({
+  id: row.id,
+  title: row.title,
+  completed: Boolean(row.completed),
 });
 
-// GET /todos - Fetch all todos
+// GET /todos - Fetch all to-dos
 app.get('/todos', (req, res) => {
-  const todos = readTodos();
-  res.json(todos);
+  try {
+    const stmt = db.prepare('SELECT id, title, completed FROM todos ORDER BY id ASC');
+    const rows = stmt.all();
+    res.json(rows.map(formatTodo));
+  } catch (err) {
+    console.error('Error fetching todos:', err);
+    res.status(500).json({ error: 'Failed to retrieve todos' });
+  }
 });
 
-// GET /todos/:id - Fetch a single todo
+// GET /todos/:id - Fetch a single to-do by ID
 app.get('/todos/:id', (req, res) => {
-  const todos = readTodos();
-  const todo = todos.find((t) => t.id === req.params.id);
-  if (!todo) {
-    return res.status(404).json({ error: 'Todo not found' });
+  try {
+    const id = Number(req.params.id);
+    const stmt = db.prepare('SELECT id, title, completed FROM todos WHERE id = ?');
+    const row = stmt.get(id);
+
+    if (!row) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
+
+    res.json(formatTodo(row));
+  } catch (err) {
+    console.error('Error fetching todo:', err);
+    res.status(500).json({ error: 'Failed to retrieve todo' });
   }
-  res.json(todo);
 });
 
-// POST /todos - Create a new todo
+// POST /todos - Create a new to-do
 app.post('/todos', (req, res) => {
-  const { title } = req.body;
-  if (!title || typeof title !== 'string' || !title.trim()) {
-    return res.status(400).json({ error: 'Title is required' });
+  try {
+    const { title, completed = false } = req.body;
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const insertStmt = db.prepare('INSERT INTO todos (title, completed) VALUES (?, ?)');
+    const info = insertStmt.run(title.trim(), completed ? 1 : 0);
+
+    const newRow = db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json(formatTodo(newRow));
+  } catch (err) {
+    console.error('Error creating todo:', err);
+    res.status(500).json({ error: 'Failed to create todo' });
   }
-
-  const todos = readTodos();
-  const newTodo = {
-    id: Date.now().toString(),
-    title: title.trim(),
-    completed: false,
-    createdAt: new Date().toISOString()
-  };
-
-  todos.push(newTodo);
-  writeTodos(todos);
-  res.status(201).json(newTodo);
 });
 
-// PATCH /todos/:id - Partially update an existing todo (edit title or toggle completed)
-app.patch('/todos/:id', (req, res) => {
-  const todos = readTodos();
-  const index = todos.findIndex((t) => t.id === req.params.id);
-
-  if (index === -1) {
-    return res.status(404).json({ error: 'Todo not found' });
-  }
-
-  const { title, completed } = req.body;
-  if (title !== undefined) todos[index].title = title.trim();
-  if (completed !== undefined) todos[index].completed = Boolean(completed);
-
-  writeTodos(todos);
-  res.json(todos[index]);
-});
-
-// PUT /todos/:id - Replace or fully update a todo
+// PUT /todos/:id - Full update of an existing to-do
 app.put('/todos/:id', (req, res) => {
-  const todos = readTodos();
-  const index = todos.findIndex((t) => t.id === req.params.id);
+  try {
+    const id = Number(req.params.id);
+    const { title, completed } = req.body;
 
-  if (index === -1) {
-    return res.status(404).json({ error: 'Todo not found' });
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const updateStmt = db.prepare('UPDATE todos SET title = ?, completed = ? WHERE id = ?');
+    const info = updateStmt.run(title.trim(), completed ? 1 : 0, id);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
+
+    const updatedRow = db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(id);
+    res.json(formatTodo(updatedRow));
+  } catch (err) {
+    console.error('Error updating todo:', err);
+    res.status(500).json({ error: 'Failed to update todo' });
   }
-
-  const { title, completed } = req.body;
-  todos[index] = {
-    ...todos[index],
-    title: title !== undefined ? title.trim() : todos[index].title,
-    completed: completed !== undefined ? Boolean(completed) : todos[index].completed
-  };
-
-  writeTodos(todos);
-  res.json(todos[index]);
 });
 
-// DELETE /todos/:id - Delete a todo
+// PATCH /todos/:id - Partial update (title and/or completed status)
+app.patch('/todos/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(id);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
+
+    const updatedTitle =
+      req.body.title !== undefined && typeof req.body.title === 'string' && req.body.title.trim()
+        ? req.body.title.trim()
+        : existing.title;
+
+    const updatedCompleted =
+      req.body.completed !== undefined ? (req.body.completed ? 1 : 0) : existing.completed;
+
+    const patchStmt = db.prepare('UPDATE todos SET title = ?, completed = ? WHERE id = ?');
+    patchStmt.run(updatedTitle, updatedCompleted, id);
+
+    const updatedRow = db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(id);
+    res.json(formatTodo(updatedRow));
+  } catch (err) {
+    console.error('Error patching todo:', err);
+    res.status(500).json({ error: 'Failed to patch todo' });
+  }
+});
+
+// DELETE /todos/:id - Delete a to-do
 app.delete('/todos/:id', (req, res) => {
-  const todos = readTodos();
-  const exists = todos.some((t) => t.id === req.params.id);
+  try {
+    const id = Number(req.params.id);
+    const deleteStmt = db.prepare('DELETE FROM todos WHERE id = ?');
+    const info = deleteStmt.run(id);
 
-  if (!exists) {
-    return res.status(404).json({ error: 'Todo not found' });
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
+
+    res.json({ message: 'Todo deleted successfully', id });
+  } catch (err) {
+    console.error('Error deleting todo:', err);
+    res.status(500).json({ error: 'Failed to delete todo' });
   }
-
-  const updatedTodos = todos.filter((t) => t.id !== req.params.id);
-  writeTodos(updatedTodos);
-  res.status(200).json({ message: `Todo with ID ${req.params.id} deleted successfully` });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT} with SQLite storage`);
 });
+
+// Graceful shutdown and database connection closure
+const shutdown = () => {
+  console.log('\nClosing SQLite database connection...');
+  try {
+    db.close();
+  } catch (err) {
+    console.error('Error closing database:', err);
+  }
+  server.close(() => {
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
