@@ -1,198 +1,189 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
-const API_BASE = `${import.meta.env.VITE_API_BASE || 'http://localhost:5000'}/todos`;
+const API = 'http://localhost:5000';
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [authMode, setAuthMode] = useState('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [todos, setTodos] = useState([]);
-  const [title, setTitle] = useState('');
+  const [newTitle, setNewTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [editingText, setEditingText] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
 
-  // 1. Initial fetch with loading state
   useEffect(() => {
-    const fetchTodos = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(API_BASE);
-        if (!res.ok) throw new Error('Failed to fetch todos');
-        const data = await res.json();
-        setTodos(data);
-        setError(null);
-      } catch (err) {
-        console.error(err);
-        setError('Could not connect to API server. Ensure server.js is running on port 5000.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTodos();
+    fetch(`${API}/me`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setUser(data); })
+      .catch(() => {});
   }, []);
 
-  // 2. Add todo (POST) with direct state update
-  const handleAddTodo = async (e) => {
+  useEffect(() => {
+    if (!user) return;
+    fetch(`${API}/todos`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => Array.isArray(data) && setTodos(data))
+      .catch(() => {});
+  }, [user]);
+
+  const handleAuth = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    setAuthError('');
+    const endpoint = authMode === 'register' ? '/register' : '/login';
+    const res = await fetch(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) return setAuthError(data.error || 'Authentication failed');
+    setUser(data);
+    setUsername('');
+    setPassword('');
+  };
 
-    try {
-      const res = await fetch(API_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim() }),
-      });
-      if (!res.ok) throw new Error('Failed to create todo');
-      const newTodo = await res.json();
-      setTodos((prev) => [...prev, newTodo]);
-      setTitle('');
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
+  const handleLogout = async () => {
+    await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' });
+    setUser(null);
+    setTodos([]);
+  };
+
+  const addTodo = async (e) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    const res = await fetch(`${API}/todos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ title: newTitle }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setTodos([...todos, created]);
+      setNewTitle('');
     }
   };
 
-  // 3. Edit todo title (PATCH) with direct state update
-  const handleSaveEdit = async (id) => {
-    if (!editingText.trim()) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: editingText.trim() }),
-      });
-      if (!res.ok) throw new Error('Failed to update todo');
+  const toggleTodo = async (todo) => {
+    const res = await fetch(`${API}/todos/${todo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ completed: !todo.completed }),
+    });
+    if (res.ok) {
       const updated = await res.json();
-      setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      setTodos(todos.map((t) => (t.id === todo.id ? updated : t)));
+    }
+  };
+
+  const saveEdit = async (id) => {
+    if (!editTitle.trim()) return;
+    const res = await fetch(`${API}/todos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ title: editTitle }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setTodos(todos.map((t) => (t.id === id ? updated : t)));
       setEditingId(null);
-      setEditingText('');
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
     }
   };
 
-  // Toggle complete (PATCH) with direct state update
-  const handleToggleComplete = async (todo) => {
-    try {
-      const res = await fetch(`${API_BASE}/${todo.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !todo.completed }),
-      });
-      if (!res.ok) throw new Error('Failed to toggle status');
-      const updated = await res.json();
-      setTodos((prev) => prev.map((t) => (t.id === todo.id ? updated : t)));
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    }
+  const deleteTodo = async (id) => {
+    const res = await fetch(`${API}/todos/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (res.ok) setTodos(todos.filter((t) => t.id !== id));
   };
 
-  // 4. Delete todo (DELETE) with direct state update
-  const handleDeleteTodo = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/${id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to delete todo');
-      setTodos((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    }
-  };
+  if (!user) {
+    return (
+      <div className="todo-container">
+        <h1>{authMode === 'register' ? 'Create Account' : 'Sign In'}</h1>
+        <form onSubmit={handleAuth} className="todo-form" style={{ flexDirection: 'column', gap: '10px' }}>
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password (min 4 chars)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          {authError && <p style={{ color: '#ff6b6b', margin: 0 }}>{authError}</p>}
+          <button type="submit">{authMode === 'register' ? 'Register' : 'Login'}</button>
+        </form>
+        <p style={{ marginTop: '12px', textAlign: 'center' }}>
+          {authMode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
+          <button
+            type="button"
+            onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); }}
+            style={{ background: 'none', border: 'none', color: '#4dabf7', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {authMode === 'register' ? 'Login' : 'Register'}
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="todo-container">
-      <h1>To-Do List App</h1>
-      <p className="subtitle">React Frontend + Express RESTful API</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>To-Do List</h1>
+        <div>
+          <span style={{ marginRight: '10px' }}>Hi, {user.username}</span>
+          <button onClick={handleLogout}>Logout</button>
+        </div>
+      </div>
 
-      {error && <div className="error-banner">{error}</div>}
-
-      <form onSubmit={handleAddTodo} className="add-form">
+      <form onSubmit={addTodo} className="todo-form">
         <input
           type="text"
           placeholder="What needs to be done?"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
         />
         <button type="submit">Add Task</button>
       </form>
 
-      {loading ? (
-        <div className="loading-state">Loading tasks...</div>
-      ) : (
-        <ul className="todo-list">
-          {todos.length === 0 ? (
-            <li className="empty-state">No tasks available. Add one above!</li>
-          ) : (
-            todos.map((todo) => (
-              <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(todo.completed)}
-                  onChange={() => handleToggleComplete(todo)}
-                />
-
-                {editingId === todo.id ? (
-                  <div className="edit-box">
-                    <input
-                      type="text"
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                    />
-                    <button className="btn-save" onClick={() => handleSaveEdit(todo.id)}>
-                      Save
-                    </button>
-                    <button
-                      className="btn-cancel"
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditingText('');
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <span
-                    className="todo-title"
-                    onDoubleClick={() => {
-                      setEditingId(todo.id);
-                      setEditingText(todo.title);
-                    }}
-                  >
-                    {todo.title}
-                  </span>
-                )}
-
-                {editingId !== todo.id && (
-                  <div className="item-actions">
-                    <button
-                      className="btn-edit"
-                      onClick={() => {
-                        setEditingId(todo.id);
-                        setEditingText(todo.title);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn-delete"
-                      onClick={() => handleDeleteTodo(todo.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      <ul className="todo-list">
+        {todos.length === 0 ? (
+          <li className="empty-state">No tasks available. Add one above!</li>
+        ) : (
+          todos.map((todo) => (
+            <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+              {editingId === todo.id ? (
+                <>
+                  <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <button onClick={() => saveEdit(todo.id)}>Save</button>
+                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo)} />
+                  <span>{todo.title}</span>
+                  <button onClick={() => { setEditingId(todo.id); setEditTitle(todo.title); }}>Edit</button>
+                  <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+                </>
+              )}
+            </li>
+          ))
+        )}
+      </ul>
     </div>
   );
 }
