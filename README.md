@@ -1,13 +1,12 @@
 # To-Do Express API & React Frontend
 
-A full-stack To-Do list application built with Node.js, Express, SQLite (`better-sqlite3`), and React.
+A full-stack To-Do list application with user registration, login, bcrypt password hashing, session authentication, SQLite (`better-sqlite3`) persistence, and a React frontend.
 
 ## Features
-- **RESTful API** built with Express.js supporting full CRUD (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`).
-- **SQLite Persistence** using `better-sqlite3` with automatic database (`todos.db`) and table initialization.
-- **Parameterized SQL Queries** to prevent SQL injection and clean database connection closure on shutdown.
-- **React Frontend** with dynamic state updates, loading states, error handling, and inline editing.
+- **User Authentication**: Sign up and log in with `bcrypt` hashed passwords stored in SQLite (`users` table) and `express-session` cookies.
+- **Protected To-Do API**: All `/todos` CRUD routes verify active user sessions and isolate tasks per user.
+- **React Frontend**: Registration/login views and full task management (add, toggle, edit, delete).
 
 ## Setup & Installation
-1. **Backend:** Run `npm install` and `node server.js` in the root folder. The API runs on `http://localhost:5000` and stores tasks in `todos.db`.
-2. **Frontend:** Run `cd client`, `npm install`, and `npm run dev`. The React app runs on `http://localhost:5173`.
+1. **Backend:** Run `npm install` and `node server.js` in the root folder (`http://localhost:5000`).
+2. **Frontend:** Run `cd client`, `npm install`, and `npm run dev` (`http://localhost:5173`).
