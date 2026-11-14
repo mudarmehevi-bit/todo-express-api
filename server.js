@@ -66,6 +66,13 @@ app.get('/me', (req, res) => req.session.userId ? res.json({ id: req.session.use
 app.get('/todos', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT id, title, completed FROM todos WHERE user_id = ?').all(req.session.userId).map(formatTodo));
 });
+app.get('/todos/stats', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT completed FROM todos WHERE user_id = ?').all(req.session.userId);
+  const total = rows.length;
+  const completed = rows.filter((r) => r.completed === 1).length;
+  const pending = total - completed;
+  res.json({ total, completed, pending });
+});
 
 app.post('/todos', requireAuth, (req, res) => {
   if (!req.body.title?.trim()) return res.status(400).json({ error: 'Title required' });

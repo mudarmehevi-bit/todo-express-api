@@ -157,3 +157,40 @@ h1 {
   padding: 24px;
   font-size: 16px;
 }
+.nav-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dashboard-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.chart-card {
+  flex: 1 1 260px;
+  min-width: 240px;
+  background: #1e1e2e;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.chart-card h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .dashboard-flex {
+    flex-direction: column;
+  }
+  .chart-card {
+    width: 100%;
+  }
+}

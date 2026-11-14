@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import Dashboard from './Dashboard';
 import './App.css';
 
 const API = 'http://localhost:5000';
 
 function App() {
   const [user, setUser] = useState(null);
+  const [view, setView] = useState('tasks');
   const [authMode, setAuthMode] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -101,31 +103,43 @@ function App() {
   }
 
   return (
-    <div className="todo-container">
+    <div className="todo-container" style={{ maxWidth: '900px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>To-Do List</h1>
+        <h1>To-Do App</h1>
         <button onClick={handleLogout}>Logout ({user.username})</button>
       </div>
-      <form onSubmit={addTodo} className="todo-form">
-        <input placeholder="What needs to be done?" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-        <button type="submit">Add Task</button>
-      </form>
-      {isLoading ? (
-        <p>Loading tasks...</p>
+
+      <div className="nav-tabs">
+        <button onClick={() => setView('tasks')}>Tasks</button>
+        <button onClick={() => setView('dashboard')}>Statistics Dashboard</button>
+      </div>
+
+      {view === 'dashboard' ? (
+        <Dashboard />
       ) : (
-        <ul className="todo-list">
-          {todos.length === 0 ? (
-            <li className="empty-state">No tasks available. Add one above!</li>
+        <>
+          <form onSubmit={addTodo} className="todo-form">
+            <input placeholder="What needs to be done?" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+            <button type="submit">Add Task</button>
+          </form>
+          {isLoading ? (
+            <p>Loading tasks...</p>
           ) : (
-            todos.map((todo) => (
-              <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
-                <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo)} />
-                <span>{todo.title}</span>
-                <button onClick={() => deleteTodo(todo.id)}>Delete</button>
-              </li>
-            ))
+            <ul className="todo-list">
+              {todos.length === 0 ? (
+                <li className="empty-state">No tasks available. Add one above!</li>
+              ) : (
+                todos.map((todo) => (
+                  <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+                    <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo)} />
+                    <span>{todo.title}</span>
+                    <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+                  </li>
+                ))
+              )}
+            </ul>
           )}
-        </ul>
+        </>
       )}
     </div>
   );
