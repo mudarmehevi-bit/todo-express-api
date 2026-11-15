@@ -12,8 +12,7 @@ import { Pie, Bar } from 'react-chartjs-2';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
-const API = 'http://localhost:5000';
-
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export default function Dashboard() {
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0 });
   const [loading, setLoading] = useState(true);

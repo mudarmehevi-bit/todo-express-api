@@ -1,71 +1,136 @@
+require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const session = require('express-session');
+const cors = require('cors');
 const bcrypt = require('bcrypt');
 const Database = require('better-sqlite3');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProd = process.env.NODE_ENV === 'production';
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+// Use Railway's persistent volume path in production, local file in dev
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'todos.db');
+const db = new Database(dbPath);
+
+// Required behind Railway's reverse proxy for secure cookies
+app.set('trust proxy', 1);
+
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+);
 app.use(express.json());
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'todo-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax' }
-}));
 
-const db = new Database(path.join(__dirname, 'todos.db'));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'dev-secret-change-in-prod',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
+
+// Initialize SQLite tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
   );
+
   CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     title TEXT NOT NULL,
-    completed INTEGER NOT NULL DEFAULT 0,
+    completed INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
 
-const formatTodo = (r) => ({ id: r.id, title: r.title, completed: Boolean(r.completed) });
-const requireAuth = (req, res, next) => req.session.userId ? next() : res.status(401).json({ error: 'Unauthorized' });
+// Authentication middleware
+function requireAuth(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
 
+// Register
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
-  if (!username?.trim() || !password) return res.status(400).json({ error: 'Username and password required' });
-  if (db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim())) {
-    return res.status(409).json({ error: 'Username taken' });
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
   }
-  const hash = await bcrypt.hash(password, 10);
-  const info = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username.trim(), hash);
-  req.session.userId = info.lastInsertRowid;
-  req.session.username = username.trim();
-  res.status(201).json({ id: info.lastInsertRowid, username: username.trim() });
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const stmt = db.prepare('INSERT INTO users (username, password) VALUES (?, ?)');
+    const info = stmt.run(username, hashedPassword);
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: 'Session error' });
+      req.session.userId = info.lastInsertRowid;
+      req.session.username = username;
+      res.status(201).json({ id: info.lastInsertRowid, username });
+    });
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+    res.status(500).json({ error: 'Registration failed' });
+  }
 });
 
+// Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username?.trim());
-  if (!user || !(await bcrypt.compare(password || '', user.password_hash))) {
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!user || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  req.session.userId = user.id;
-  req.session.username = user.username;
-  res.json({ id: user.id, username: user.username });
+  req.session.regenerate((err) => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    res.json({ id: user.id, username: user.username });
+  });
 });
 
-app.post('/logout', (req, res) => req.session.destroy(() => res.json({ message: 'Logged out' })));
-app.get('/me', (req, res) => req.session.userId ? res.json({ id: req.session.userId, username: req.session.username }) : res.status(401).json({ error: 'Not logged in' }));
+// Logout
+app.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) return res.status(500).json({ error: 'Logout failed' });
+    res.clearCookie('connect.sid');
+    res.json({ message: 'Logged out' });
+  });
+});
 
+// Get current session user
+app.get('/me', (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  res.json({ id: req.session.userId, username: req.session.username });
+});
+
+// Get all todos for logged-in user
 app.get('/todos', requireAuth, (req, res) => {
-  res.json(db.prepare('SELECT id, title, completed FROM todos WHERE user_id = ?').all(req.session.userId).map(formatTodo));
+  const rows = db.prepare('SELECT * FROM todos WHERE user_id = ?').all(req.session.userId);
+  const todos = rows.map((t) => ({ ...t, completed: Boolean(t.completed) }));
+  res.json(todos);
 });
+
+// Get todo statistics for logged-in user
 app.get('/todos/stats', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT completed FROM todos WHERE user_id = ?').all(req.session.userId);
   const total = rows.length;
@@ -74,26 +139,65 @@ app.get('/todos/stats', requireAuth, (req, res) => {
   res.json({ total, completed, pending });
 });
 
+// Create a new todo
 app.post('/todos', requireAuth, (req, res) => {
-  if (!req.body.title?.trim()) return res.status(400).json({ error: 'Title required' });
-  const info = db.prepare('INSERT INTO todos (user_id, title, completed) VALUES (?, ?, 0)').run(req.session.userId, req.body.title.trim());
-  res.status(201).json(formatTodo(db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(info.lastInsertRowid)));
+  const { title } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+  const stmt = db.prepare('INSERT INTO todos (user_id, title, completed) VALUES (?, ?, 0)');
+  const info = stmt.run(req.session.userId, title.trim());
+  res.status(201).json({
+    id: info.lastInsertRowid,
+    user_id: req.session.userId,
+    title: title.trim(),
+    completed: false,
+  });
 });
 
+// Update a todo
 app.patch('/todos/:id', requireAuth, (req, res) => {
-  const id = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?').get(id, req.session.userId);
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  const title = req.body.title?.trim() || row.title;
-  const completed = req.body.completed !== undefined ? (req.body.completed ? 1 : 0) : row.completed;
-  db.prepare('UPDATE todos SET title = ?, completed = ? WHERE id = ? AND user_id = ?').run(title, completed, id, req.session.userId);
-  res.json(formatTodo(db.prepare('SELECT id, title, completed FROM todos WHERE id = ?').get(id)));
+  const { id } = req.params;
+  const { title, completed } = req.body;
+  const existing = db
+    .prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?')
+    .get(id, req.session.userId);
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Todo not found' });
+  }
+
+  const updatedTitle = title !== undefined ? title.trim() : existing.title;
+  const updatedCompleted = completed !== undefined ? (completed ? 1 : 0) : existing.completed;
+
+  db.prepare('UPDATE todos SET title = ?, completed = ? WHERE id = ? AND user_id = ?').run(
+    updatedTitle,
+    updatedCompleted,
+    id,
+    req.session.userId
+  );
+
+  res.json({
+    id: Number(id),
+    user_id: req.session.userId,
+    title: updatedTitle,
+    completed: Boolean(updatedCompleted),
+  });
 });
 
+// Delete a todo
 app.delete('/todos/:id', requireAuth, (req, res) => {
-  const info = db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(Number(req.params.id), req.session.userId);
-  info.changes ? res.json({ message: 'Deleted' }) : res.status(404).json({ error: 'Not found' });
+  const { id } = req.params;
+  const info = db
+    .prepare('DELETE FROM todos WHERE id = ? AND user_id = ?')
+    .run(id, req.session.userId);
+
+  if (info.changes === 0) {
+    return res.status(404).json({ error: 'Todo not found' });
+  }
+  res.json({ message: 'Deleted successfully' });
 });
 
-const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-process.on('SIGINT', () => { db.close(); server.close(() => process.exit(0)); });
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

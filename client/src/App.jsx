@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import Dashboard from './Dashboard';
 import './App.css';
 
-const API = 'http://localhost:5000';
-
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('tasks');
