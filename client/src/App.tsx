@@ -26,13 +26,18 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
+    const controller = new AbortController();
     setIsLoading(true);
-    fetch(`${API}/todos`, { credentials: 'include' })
+    fetch(`${API}/todos`, { credentials: 'include', signal: controller.signal })
       .then((r) => r.json() as Promise<Todo[]>)
       .then((data) => {
         if (Array.isArray(data)) setTodos(data);
       })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name !== 'AbortError') console.error(err);
+      })
       .finally(() => setIsLoading(false));
+    return () => controller.abort();
   }, [user]);
 
   const handleAuth = async (e: FormEvent<HTMLFormElement>) => {
