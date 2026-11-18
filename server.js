@@ -203,6 +203,10 @@ app.delete('/todos/:id', requireAuth, (req, res) => {
   res.json({ message: 'Deleted successfully' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
