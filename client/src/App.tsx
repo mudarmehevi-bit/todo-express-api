@@ -1,103 +1,105 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import Dashboard from './Dashboard';
-import type { Todo, User, AuthResponse } from './types';
+import { fetchCurrentUser, loginUser, logoutUser, clearUserError } from './store/userSlice';
+import {
+  fetchTodos,
+  addTodo as addTodoThunk,
+  toggleTodo as toggleTodoThunk,
+  deleteTodo as deleteTodoThunk,
+  clearTodos,
+} from './store/todosSlice';
+import { setFilter } from './store/uiSlice';
+import type { Todo, AuthResponse } from './types';
 import './App.css';
 
 const API: string = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const dispatch = useDispatch<any>();
+
+  // Global state from Redux store
+  const { currentUser: user, error: authError } = useSelector((state: any) => state.user);
+  const { items: todos, loading: isLoading } = useSelector((state: any) => state.todos);
+  const { filter } = useSelector((state: any) => state.ui);
+
+  // Local form & navigation state
   const [view, setView] = useState<'tasks' | 'dashboard'>('tasks');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [localError, setLocalError] = useState<string>('');
   const [newTitle, setNewTitle] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Sync session with backend on initial load
   useEffect(() => {
-    fetch(`${API}/me`, { credentials: 'include' })
-      .then((r) => (r.ok ? (r.json() as Promise<User>) : null))
-      .then((data) => {
-        if (data) setUser(data);
-      });
-  }, []);
+    dispatch(fetchCurrentUser());
+  }, [dispatch]);
 
+  // Fetch todos whenever a user logs in; clear on logout
   useEffect(() => {
-    if (!user) return;
-    const controller = new AbortController();
-    setIsLoading(true);
-    fetch(`${API}/todos`, { credentials: 'include', signal: controller.signal })
-      .then((r) => r.json() as Promise<Todo[]>)
-      .then((data) => {
-        if (Array.isArray(data)) setTodos(data);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name !== 'AbortError') console.error(err);
-      })
-      .finally(() => setIsLoading(false));
-    return () => controller.abort();
-  }, [user]);
+    if (user) {
+      dispatch(fetchTodos());
+    } else {
+      dispatch(clearTodos());
+    }
+  }, [user, dispatch]);
 
   const handleAuth = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
-    const res = await fetch(`${API}/${authMode}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ username, password }),
-    });
-    const data: AuthResponse = await res.json();
-    if (!res.ok) return setError(data.error || 'Auth failed');
-    setUser({ id: data.id, username: data.username });
-    setUsername('');
-    setPassword('');
+    setLocalError('');
+    dispatch(clearUserError());
+
+    if (authMode === 'login') {
+      const result = await dispatch(loginUser({ username, password }));
+      if (loginUser.fulfilled.match(result)) {
+        setUsername('');
+        setPassword('');
+      }
+    } else {
+      const res = await fetch(`${API}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      });
+      const data: AuthResponse = await res.json();
+      if (!res.ok) return setLocalError(data.error || 'Registration failed');
+      await dispatch(fetchCurrentUser());
+      setUsername('');
+      setPassword('');
+    }
   };
 
   const handleLogout = async () => {
-    await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' });
-    setUser(null);
-    setTodos([]);
+    await dispatch(logoutUser());
+    dispatch(clearTodos());
   };
 
-  const addTodo = async (e: FormEvent<HTMLFormElement>) => {
+  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const res = await fetch(`${API}/todos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ title: newTitle }),
-    });
-    if (res.ok) {
-      const created: Todo = await res.json();
-      setTodos([...todos, created]);
+    const result = await dispatch(addTodoThunk(newTitle));
+    if (addTodoThunk.fulfilled.match(result)) {
       setNewTitle('');
     }
   };
 
-  const toggleTodo = async (todo: Todo) => {
-    const res = await fetch(`${API}/todos/${todo.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ completed: !todo.completed }),
-    });
-    if (res.ok) {
-      const updated: Todo = await res.json();
-      setTodos(todos.map((t) => (t.id === todo.id ? updated : t)));
-    }
+  const handleToggleTodo = (todo: Todo) => {
+    dispatch(toggleTodoThunk(todo));
   };
 
-  const deleteTodo = async (id: number) => {
-    const res = await fetch(`${API}/todos/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (res.ok) setTodos(todos.filter((t) => t.id !== id));
+  const handleDeleteTodo = (id: number) => {
+    dispatch(deleteTodoThunk(id));
   };
+
+  const filteredTodos = (todos as Todo[]).filter((todo) => {
+    if (filter === 'active') return !todo.completed;
+    if (filter === 'completed') return Boolean(todo.completed);
+    return true;
+  });
+
+  const displayedError = localError || authError;
 
   if (!user) {
     return (
@@ -119,10 +121,14 @@ function App() {
           />
           <button type="submit">{authMode === 'register' ? 'Register' : 'Login'}</button>
         </form>
-        {error && <p style={{ color: '#ff6b6b' }}>{error}</p>}
+        {displayedError && <p style={{ color: '#ff6b6b' }}>{displayedError}</p>}
         <button
           type="button"
-          onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+          onClick={() => {
+            setLocalError('');
+            dispatch(clearUserError());
+            setAuthMode(authMode === 'register' ? 'login' : 'register');
+          }}
         >
           {authMode === 'register' ? 'Switch to Login' : 'Switch to Register'}
         </button>
@@ -146,7 +152,7 @@ function App() {
         <Dashboard username={user.username} />
       ) : (
         <>
-          <form onSubmit={addTodo} className="todo-form">
+          <form onSubmit={handleAddTodo} className="todo-form">
             <input
               placeholder="What needs to be done?"
               value={newTitle}
@@ -154,22 +160,35 @@ function App() {
             />
             <button type="submit">Add Task</button>
           </form>
+
+          <div className="nav-tabs" style={{ marginBottom: '1rem' }}>
+            <button type="button" onClick={() => dispatch(setFilter('all'))}>
+              All
+            </button>
+            <button type="button" onClick={() => dispatch(setFilter('active'))}>
+              Active
+            </button>
+            <button type="button" onClick={() => dispatch(setFilter('completed'))}>
+              Completed
+            </button>
+          </div>
+
           {isLoading ? (
             <p>Loading tasks...</p>
           ) : (
             <ul className="todo-list">
-              {todos.length === 0 ? (
+              {filteredTodos.length === 0 ? (
                 <li className="empty-state">No tasks available. Add one above!</li>
               ) : (
-                todos.map((todo) => (
+                filteredTodos.map((todo) => (
                   <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
                     <input
                       type="checkbox"
                       checked={Boolean(todo.completed)}
-                      onChange={() => toggleTodo(todo)}
+                      onChange={() => handleToggleTodo(todo)}
                     />
                     <span>{todo.title}</span>
-                    <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+                    <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
                   </li>
                 ))
               )}
