@@ -103,10 +103,11 @@ function App() {
 
   if (!user) {
     return (
-      <div className="todo-container">
+      <main className="todo-container">
         <h1>{authMode === 'register' ? 'Create Account' : 'Sign In'}</h1>
         <form onSubmit={handleAuth} className="todo-form">
           <input
+            aria-label="Username"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -114,6 +115,7 @@ function App() {
           />
           <input
             type="password"
+            aria-label="Password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -121,7 +123,11 @@ function App() {
           />
           <button type="submit">{authMode === 'register' ? 'Register' : 'Login'}</button>
         </form>
-        {displayedError && <p style={{ color: '#ff6b6b' }}>{displayedError}</p>}
+        {displayedError && (
+          <p role="alert" style={{ color: '#ff6b6b' }}>
+            {displayedError}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -132,70 +138,102 @@ function App() {
         >
           {authMode === 'register' ? 'Switch to Login' : 'Switch to Register'}
         </button>
-      </div>
+      </main>
     );
   }
 
   return (
     <div className="todo-container" style={{ maxWidth: '900px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>To-Do App</h1>
-        <button onClick={handleLogout}>Logout ({user.username})</button>
-      </div>
+        <button type="button" onClick={handleLogout}>
+          Logout ({user.username})
+        </button>
+      </header>
 
-      <div className="nav-tabs">
-        <button onClick={() => setView('tasks')}>Tasks</button>
-        <button onClick={() => setView('dashboard')}>Statistics Dashboard</button>
-      </div>
+      <nav className="nav-tabs" aria-label="Main navigation">
+        <button type="button" aria-pressed={view === 'tasks'} onClick={() => setView('tasks')}>
+          Tasks
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === 'dashboard'}
+          onClick={() => setView('dashboard')}
+        >
+          Statistics Dashboard
+        </button>
+      </nav>
 
-      {view === 'dashboard' ? (
-        <Dashboard username={user.username} />
-      ) : (
-        <>
-          <form onSubmit={handleAddTodo} className="todo-form">
-            <input
-              placeholder="What needs to be done?"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-            <button type="submit">Add Task</button>
-          </form>
+      <main>
+        {view === 'dashboard' ? (
+          <Dashboard username={user.username} />
+        ) : (
+          <>
+            <form onSubmit={handleAddTodo} className="todo-form">
+              <input
+                aria-label="New task title"
+                placeholder="What needs to be done?"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+              <button type="submit">Add Task</button>
+            </form>
 
-          <div className="nav-tabs" style={{ marginBottom: '1rem' }}>
-            <button type="button" onClick={() => dispatch(setFilter('all'))}>
-              All
-            </button>
-            <button type="button" onClick={() => dispatch(setFilter('active'))}>
-              Active
-            </button>
-            <button type="button" onClick={() => dispatch(setFilter('completed'))}>
-              Completed
-            </button>
-          </div>
+            <div className="nav-tabs" role="group" aria-label="Filter tasks" style={{ marginBottom: '1rem' }}>
+              <button
+                type="button"
+                aria-pressed={filter === 'all'}
+                onClick={() => dispatch(setFilter('all'))}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                aria-pressed={filter === 'active'}
+                onClick={() => dispatch(setFilter('active'))}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                aria-pressed={filter === 'completed'}
+                onClick={() => dispatch(setFilter('completed'))}
+              >
+                Completed
+              </button>
+            </div>
 
-          {isLoading ? (
-            <p>Loading tasks...</p>
-          ) : (
-            <ul className="todo-list">
-              {filteredTodos.length === 0 ? (
-                <li className="empty-state">No tasks available. Add one above!</li>
-              ) : (
-                filteredTodos.map((todo) => (
-                  <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(todo.completed)}
-                      onChange={() => handleToggleTodo(todo)}
-                    />
-                    <span>{todo.title}</span>
-                    <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
-        </>
-      )}
+            {isLoading ? (
+              <p>Loading tasks...</p>
+            ) : (
+              <ul className="todo-list">
+                {filteredTodos.length === 0 ? (
+                  <li className="empty-state">No tasks available. Add one above!</li>
+                ) : (
+                  filteredTodos.map((todo) => (
+                    <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Mark "${todo.title}" as ${todo.completed ? 'incomplete' : 'complete'}`}
+                        checked={Boolean(todo.completed)}
+                        onChange={() => handleToggleTodo(todo)}
+                      />
+                      <span>{todo.title}</span>
+                      <button
+                        type="button"
+                        aria-label={`Delete task "${todo.title}"`}
+                        onClick={() => handleDeleteTodo(todo.id)}
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </>
+        )}
+      </main>
     </div>
   );
 }

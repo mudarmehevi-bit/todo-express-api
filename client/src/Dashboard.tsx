@@ -60,22 +60,22 @@ export default function Dashboard({ username }: DashboardProps) {
 
   return (
     <div className="dashboard-flex">
-      <div className="chart-card">
-        <h3>{username ? `${username}'s Task Summary` : 'Task Summary'}</h3>
+      <section className="chart-card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">{username ? `${username}'s Task Summary` : 'Task Summary'}</h2>
         <p><strong>Total Tasks:</strong> {stats.total}</p>
         <p><strong>Completed:</strong> {stats.completed}</p>
         <p><strong>Pending:</strong> {stats.pending}</p>
-      </div>
+      </section>
 
-      <div className="chart-card">
-        <h3>Completion Ratio (Pie)</h3>
-        <Pie data={pieData} />
-      </div>
+      <section className="chart-card" aria-labelledby="pie-heading">
+        <h2 id="pie-heading">Completion Ratio (Pie)</h2>
+        <Pie data={pieData} aria-label="Task completion ratio pie chart" role="img" />
+      </section>
 
-      <div className="chart-card">
-        <h3>Task Breakdown (Bar)</h3>
-        <Bar data={barData} options={barOptions} />
-      </div>
+      <section className="chart-card" aria-labelledby="bar-heading">
+        <h2 id="bar-heading">Task Breakdown (Bar)</h2>
+        <Bar data={barData} options={barOptions} aria-label="Task breakdown bar chart" role="img" />
+      </section>
     </div>
   );
 }
