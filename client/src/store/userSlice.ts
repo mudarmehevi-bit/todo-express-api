@@ -20,26 +20,54 @@ const initialState: UserState = {
 export const fetchCurrentUser = createAsyncThunk<User, void, { rejectValue: string }>(
   'user/fetchCurrentUser',
   async (_, thunkAPI) => {
-    const res = await fetch(`${API_URL}/me`, { credentials: 'include' });
-    if (!res.ok) return thunkAPI.rejectWithValue('Not authenticated');
-    return res.json();
+    try {
+      const res = await fetch(`${API_URL}/me`, { credentials: 'include' });
+      if (!res.ok) return thunkAPI.rejectWithValue('Not authenticated');
+      return res.json();
+    } catch {
+      return thunkAPI.rejectWithValue('Network error checking session');
+    }
   }
 );
+
+export const registerUser = createAsyncThunk<
+  User & { token?: string },
+  { username: string; password: string },
+  { rejectValue: string }
+>('user/registerUser', async (credentials, thunkAPI) => {
+  try {
+    const res = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(credentials),
+    });
+    const data = await res.json();
+    if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Registration failed');
+    return data;
+  } catch {
+    return thunkAPI.rejectWithValue('Network error during registration');
+  }
+});
 
 export const loginUser = createAsyncThunk<
   User & { token?: string },
   { username: string; password: string },
   { rejectValue: string }
 >('user/loginUser', async (credentials, thunkAPI) => {
-  const res = await fetch(`${API_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(credentials),
-  });
-  const data = await res.json();
-  if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Login failed');
-  return data;
+  try {
+    const res = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(credentials),
+    });
+    const data = await res.json();
+    if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Login failed');
+    return data;
+  } catch {
+    return thunkAPI.rejectWithValue('Network error during login');
+  }
 });
 
 export const logoutUser = createAsyncThunk<void, void>('user/logoutUser', async () => {
@@ -69,6 +97,21 @@ const userSlice = createSlice({
       .addCase(fetchCurrentUser.rejected, (state) => {
         state.currentUser = null;
         state.status = 'idle';
+      })
+      .addCase(registerUser.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        state.currentUser = { id: action.payload.id, username: action.payload.username };
+        if (action.payload.token) {
+          state.authToken = action.payload.token;
+        }
+        state.status = 'succeeded';
+      })
+      .addCase(registerUser.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload ?? 'Registration failed';
       })
       .addCase(loginUser.pending, (state) => {
         state.status = 'loading';

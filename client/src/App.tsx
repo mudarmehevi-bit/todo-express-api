@@ -1,7 +1,15 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Dashboard from './Dashboard';
-import { fetchCurrentUser, loginUser, logoutUser, clearUserError } from './store/userSlice';
+import ServerlessCalculator from './components/ServerlessCalculator';
+import type { RootState, AppDispatch } from './store';
+import {
+  fetchCurrentUser,
+  loginUser,
+  registerUser,
+  logoutUser,
+  clearUserError,
+} from './store/userSlice';
 import {
   fetchTodos,
   addTodo as addTodoThunk,
@@ -10,36 +18,42 @@ import {
   clearTodos,
 } from './store/todosSlice';
 import { setFilter } from './store/uiSlice';
-import type { Todo, AuthResponse } from './types';
+import type { Todo } from './types';
 import './App.css';
 
-const API: string = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 function App() {
-  const dispatch = useDispatch<any>();
+  const dispatch = useDispatch<AppDispatch>();
 
-  // Global state from Redux store
-  const { currentUser: user, error: authError } = useSelector((state: any) => state.user);
-  const { items: todos, loading: isLoading } = useSelector((state: any) => state.todos);
-  const { filter } = useSelector((state: any) => state.ui);
+  // Typed global state from Redux store
+  const { currentUser: user, error: authError } = useSelector((state: RootState) => state.user);
+  const { items: todos, loading: isLoading } = useSelector((state: RootState) => state.todos);
+  const { filter } = useSelector((state: RootState) => state.ui);
 
   // Local form & navigation state
-  const [view, setView] = useState<'tasks' | 'dashboard'>('tasks');
+  const [view, setView] = useState<'tasks' | 'dashboard' | 'calculator'>('tasks');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [localError, setLocalError] = useState<string>('');
   const [newTitle, setNewTitle] = useState<string>('');
 
-  // Sync session with backend on initial load
+  // Sync session with backend on initial load with error handling
   useEffect(() => {
-    dispatch(fetchCurrentUser());
+    dispatch(fetchCurrentUser())
+      .unwrap()
+      .catch(() => {
+        // Unauthenticated or offline on initial load; handled gracefully in state
+      });
   }, [dispatch]);
 
   // Fetch todos whenever a user logs in; clear on logout
   useEffect(() => {
     if (user) {
-      dispatch(fetchTodos());
+      dispatch(fetchTodos())
+        .unwrap()
+        .catch(() => {
+          setLocalError('Unable to load tasks. Please check your connection.');
+        });
     } else {
       dispatch(clearTodos());
     }
@@ -57,17 +71,11 @@ function App() {
         setPassword('');
       }
     } else {
-      const res = await fetch(`${API}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password }),
-      });
-      const data: AuthResponse = await res.json();
-      if (!res.ok) return setLocalError(data.error || 'Registration failed');
-      await dispatch(fetchCurrentUser());
-      setUsername('');
-      setPassword('');
+      const result = await dispatch(registerUser({ username, password }));
+      if (registerUser.fulfilled.match(result)) {
+        setUsername('');
+        setPassword('');
+      }
     }
   };
 
@@ -162,11 +170,20 @@ function App() {
         >
           Statistics Dashboard
         </button>
+        <button
+          type="button"
+          aria-pressed={view === 'calculator'}
+          onClick={() => setView('calculator')}
+        >
+          Serverless Calculator
+        </button>
       </nav>
 
       <main>
         {view === 'dashboard' ? (
           <Dashboard username={user.username} />
+        ) : view === 'calculator' ? (
+          <ServerlessCalculator />
         ) : (
           <>
             <form onSubmit={handleAddTodo} className="todo-form">
@@ -179,7 +196,12 @@ function App() {
               <button type="submit">Add Task</button>
             </form>
 
-            <div className="nav-tabs" role="group" aria-label="Filter tasks" style={{ marginBottom: '1rem' }}>
+            <div
+              className="nav-tabs"
+              role="group"
+              aria-label="Filter tasks"
+              style={{ marginBottom: '1rem' }}
+            >
               <button
                 type="button"
                 aria-pressed={filter === 'all'}
@@ -202,6 +224,12 @@ function App() {
                 Completed
               </button>
             </div>
+
+            {displayedError && (
+              <p role="alert" style={{ color: '#ff6b6b' }}>
+                {displayedError}
+              </p>
+            )}
 
             {isLoading ? (
               <p>Loading tasks...</p>

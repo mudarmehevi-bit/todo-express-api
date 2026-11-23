@@ -69,6 +69,47 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Serverless-compatible calculation handler (/api/calc and /calculate)
+function handleCalculation(req, res) {
+  const { a, b, op, operation } = req.body || {};
+  const selectedOp = operation || op || 'add';
+  const numA = Number(a);
+  const numB = Number(b);
+
+  if (a === undefined || b === undefined || Number.isNaN(numA) || Number.isNaN(numB)) {
+    return res.status(400).json({ error: 'Both a and b must be valid numbers' });
+  }
+
+  let result;
+  switch (selectedOp) {
+    case 'add':
+      result = numA + numB;
+      break;
+    case 'sub':
+    case 'subtract':
+      result = numA - numB;
+      break;
+    case 'mul':
+    case 'multiply':
+      result = numA * numB;
+      break;
+    case 'div':
+    case 'divide':
+      if (numB === 0) {
+        return res.status(400).json({ error: 'Cannot divide by zero' });
+      }
+      result = numA / numB;
+      break;
+    default:
+      return res.status(400).json({ error: 'Invalid operation' });
+  }
+
+  return res.status(200).json({ result });
+}
+
+app.post('/api/calc', handleCalculation);
+app.post('/calculate', handleCalculation);
+
 // Register
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
