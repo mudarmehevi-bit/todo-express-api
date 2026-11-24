@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { API_URL } from '../config';
 import type { Todo } from '../types';
-
-const API_URL: string = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
 
 interface TodosState {
   items: Todo[];
@@ -18,52 +17,68 @@ const initialState: TodosState = {
 export const fetchTodos = createAsyncThunk<Todo[], void, { rejectValue: string }>(
   'todos/fetchTodos',
   async (_, thunkAPI) => {
-    const res = await fetch(`${API_URL}/todos`, { credentials: 'include' });
-    const data = await res.json();
-    if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to load todos');
-    return data;
+    try {
+      const res = await fetch(`${API_URL}/todos`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to load todos');
+      return data;
+    } catch {
+      return thunkAPI.rejectWithValue('Network error while fetching todos');
+    }
   }
 );
 
 export const addTodo = createAsyncThunk<Todo, string, { rejectValue: string }>(
   'todos/addTodo',
   async (title, thunkAPI) => {
-    const res = await fetch(`${API_URL}/todos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ title }),
-    });
-    const data = await res.json();
-    if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to create todo');
-    return data;
+    try {
+      const res = await fetch(`${API_URL}/todos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title }),
+      });
+      const data = await res.json();
+      if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to create todo');
+      return data;
+    } catch {
+      return thunkAPI.rejectWithValue('Network error while creating todo');
+    }
   }
 );
 
 export const toggleTodo = createAsyncThunk<Todo, Todo, { rejectValue: string }>(
   'todos/toggleTodo',
   async (todo, thunkAPI) => {
-    const res = await fetch(`${API_URL}/todos/${todo.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ completed: !todo.completed }),
-    });
-    const data = await res.json();
-    if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to update todo');
-    return data;
+    try {
+      const res = await fetch(`${API_URL}/todos/${todo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ completed: !todo.completed }),
+      });
+      const data = await res.json();
+      if (!res.ok) return thunkAPI.rejectWithValue(data.error || 'Failed to update todo');
+      return data;
+    } catch {
+      return thunkAPI.rejectWithValue('Network error while updating todo');
+    }
   }
 );
 
 export const deleteTodo = createAsyncThunk<number, number, { rejectValue: string }>(
   'todos/deleteTodo',
   async (id, thunkAPI) => {
-    const res = await fetch(`${API_URL}/todos/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!res.ok) return thunkAPI.rejectWithValue('Failed to delete todo');
-    return id;
+    try {
+      const res = await fetch(`${API_URL}/todos/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) return thunkAPI.rejectWithValue('Failed to delete todo');
+      return id;
+    } catch {
+      return thunkAPI.rejectWithValue('Network error while deleting todo');
+    }
   }
 );
 
@@ -73,6 +88,7 @@ const todosSlice = createSlice({
   reducers: {
     clearTodos(state) {
       state.items = [];
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -90,13 +106,18 @@ const todosSlice = createSlice({
         state.error = action.payload ?? 'Failed to load todos';
       })
       .addCase(addTodo.fulfilled, (state, action) => {
+        state.error = null;
         state.items.push(action.payload);
       })
       .addCase(toggleTodo.fulfilled, (state, action) => {
+        state.error = null;
         const idx = state.items.findIndex((t) => t.id === action.payload.id);
-        if (idx !== -1) state.items[idx] = action.payload;
+        if (idx !== -1) {
+          state.items[idx] = action.payload;
+        }
       })
       .addCase(deleteTodo.fulfilled, (state, action) => {
+        state.error = null;
         state.items = state.items.filter((t) => t.id !== action.payload);
       });
   },
