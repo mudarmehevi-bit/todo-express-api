@@ -1,0 +1,130 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mudar Murtaza Mehevi | Portfolio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-bar">
+      <a href="#top" class="brand">Mudar Murtaza Mehevi</a>
+      <nav aria-label="Primary Navigation">
+        <ul class="nav-links">
+          <li><a href="#about">About</a></li>
+          <li><a href="#project">Project</a></li>
+          <li><a href="#skills">Skills</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container">
+        <p class="eyebrow">B.Tech in Industrial Internet of Things (IIoT)</p>
+        <h1>Building Full-Stack &amp; Serverless Web Applications</h1>
+        <p class="hero-subtitle">
+          Focused on clean UI engineering, offline-ready web apps, Express/SQLite APIs, and serverless functions.
+        </p>
+        <div class="badge-row" aria-label="Project and Profile Links">
+          <a class="badge badge-primary" href="https://github.com/mudarmehevi-bit/todo-express-api" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
+          <a class="badge badge-secondary" href="http://localhost:5173" target="_blank" rel="noopener noreferrer">Live Demo</a>
+          <a class="badge badge-outline" href="https://github.com/mudarmehevi-bit" target="_blank" rel="noopener noreferrer">GitHub Profile</a>
+          <a class="badge badge-outline" href="https://www.linkedin.com/in/mudar-mehevi" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="about" class="section">
+      <div class="container">
+        <h2>About Me</h2>
+        <p>
+          I am <strong>Mudar Murtaza Mehevi</strong>, a B.Tech student in Industrial Internet of Things (IIoT)
+          passionate about practical software engineering, performance optimization, and building reliable
+          applications from frontend to backend.
+        </p>
+      </div>
+    </section>
+
+    <section id="project" class="section section-alt">
+      <div class="container">
+        <h2>Featured Project: To-Do App with Serverless Calculator</h2>
+        <p class="section-lead">
+          A full-stack task management application featuring React, Redux Toolkit, Workbox offline caching,
+          an Express + SQLite backend, and a serverless calculation endpoint.
+        </p>
+        <div class="badge-row tech-badges" aria-label="Technologies Used">
+          <span class="badge badge-tech">React</span>
+          <span class="badge badge-tech">TypeScript</span>
+          <span class="badge badge-tech">Redux Toolkit</span>
+          <span class="badge badge-tech">Workbox / PWA</span>
+          <span class="badge badge-tech">Node.js &amp; Express</span>
+          <span class="badge badge-tech">SQLite</span>
+          <span class="badge badge-tech">Serverless /api/calc</span>
+        </div>
+        <div class="project-grid">
+          <div class="card">
+            <h3>Key Highlights</h3>
+            <ul class="feature-list">
+              <li>Achieved a <strong>96</strong> Lighthouse Performance score with production Vite builds.</li>
+              <li>Enabled offline caching via Workbox service worker (<code>sw.js</code>).</li>
+              <li>Integrated <code>ServerlessCalculator</code> with <code>/api/calc</code> and <code>/calculate</code> endpoints.</li>
+              <li>Structured state with typed Redux Toolkit slices and async thunks.</li>
+            </ul>
+            <div class="card-actions">
+              <a class="badge badge-primary" href="https://github.com/mudarmehevi-bit/todo-express-api" target="_blank" rel="noopener noreferrer">View Source on GitHub</a>
+            </div>
+          </div>
+          <div class="card video-card">
+            <h3>Project Demo Video</h3>
+            <div class="video-wrapper">
+              <video controls preload="metadata">
+                <source src="demo.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <p class="hint">Place <code>demo.mp4</code> in <code>portfolio/</code> or swap in a YouTube <code>&lt;iframe&gt;</code> embed.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="skills" class="section">
+      <div class="container">
+        <h2>Learned &amp; Core Skills</h2>
+        <div class="skills-grid">
+          <div class="card">
+            <h3>Frontend &amp; Performance</h3>
+            <div class="badge-row">
+              <span class="badge badge-tech">HTML5 &amp; CSS3</span>
+              <span class="badge badge-tech">React &amp; TypeScript</span>
+              <span class="badge badge-tech">Redux Toolkit</span>
+              <span class="badge badge-tech">Vite &amp; Workbox PWA</span>
+              <span class="badge badge-tech">Lighthouse Auditing</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Backend, Serverless &amp; Tools</h3>
+            <div class="badge-row">
+              <span class="badge badge-tech">Node.js &amp; Express</span>
+              <span class="badge badge-tech">SQLite (better-sqlite3)</span>
+              <span class="badge badge-tech">Serverless Functions</span>
+              <span class="badge badge-tech">Git &amp; GitHub</span>
+              <span class="badge badge-tech">Railway / Vercel</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <p>&copy; 2026 Mudar Murtaza Mehevi. Built with HTML &amp; CSS.</p>
+      <a href="mailto:mudarmehevi@gmail.com">Contact</a>
+    </div>
+  </footer>
+</body>
+</html>
