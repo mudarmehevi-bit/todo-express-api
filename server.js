@@ -1,4 +1,5 @@
-require('dotenv').config();
+﻿require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
@@ -10,16 +11,18 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isProd = process.env.NODE_ENV === 'production';
 
-if (isProd && !process.env.SESSION_SECRET) {
-  console.error('SESSION_SECRET is required in production');
-  process.exit(1);
+if (!process.env.SESSION_SECRET) {
+  if (isProd) {
+    console.error('SESSION_SECRET is required in production');
+    process.exit(1);
+  }
+  console.warn('SESSION_SECRET not set - generating a temporary runtime secret');
+  process.env.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
 }
 
-// Use persistent volume path in production/Docker, local file in dev
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'todos.db');
 const db = new Database(dbPath);
 
-// Required behind reverse proxies (Railway / Nginx) for secure cookies
 app.set('trust proxy', 1);
 
 app.use(
@@ -32,7 +35,7 @@ app.use(express.json());
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'dev-secret-change-in-prod',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -44,7 +47,6 @@ app.use(
   })
 );
 
-// Initialize SQLite tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +63,6 @@ db.exec(`
   );
 `);
 
-// Authentication middleware
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -69,7 +70,6 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// Serverless-compatible calculation handler (/api/calc and /calculate)
 function handleCalculation(req, res) {
   const { a, b, op, operation } = req.body || {};
   const selectedOp = operation || op || 'add';
@@ -110,7 +110,6 @@ function handleCalculation(req, res) {
 app.post('/api/calc', handleCalculation);
 app.post('/calculate', handleCalculation);
 
-// Register
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -134,7 +133,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -152,7 +150,6 @@ app.post('/login', async (req, res) => {
   });
 });
 
-// Logout
 app.post('/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) return res.status(500).json({ error: 'Logout failed' });
@@ -161,7 +158,6 @@ app.post('/logout', (req, res) => {
   });
 });
 
-// Get current session user
 app.get('/me', (req, res) => {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -169,14 +165,12 @@ app.get('/me', (req, res) => {
   res.json({ id: req.session.userId, username: req.session.username });
 });
 
-// Get all todos for logged-in user
 app.get('/todos', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT * FROM todos WHERE user_id = ?').all(req.session.userId);
   const todos = rows.map((t) => ({ ...t, completed: Boolean(t.completed) }));
   res.json(todos);
 });
 
-// Get todo statistics for logged-in user
 app.get('/todos/stats', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT completed FROM todos WHERE user_id = ?').all(req.session.userId);
   const total = rows.length;
@@ -185,7 +179,6 @@ app.get('/todos/stats', requireAuth, (req, res) => {
   res.json({ total, completed, pending });
 });
 
-// Create a new todo
 app.post('/todos', requireAuth, (req, res) => {
   const { title } = req.body;
   if (!title || !title.trim()) {
@@ -201,7 +194,6 @@ app.post('/todos', requireAuth, (req, res) => {
   });
 });
 
-// Update a todo
 app.patch('/todos/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   const { title, completed } = req.body;
@@ -231,7 +223,6 @@ app.patch('/todos/:id', requireAuth, (req, res) => {
   });
 });
 
-// Delete a todo
 app.delete('/todos/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   const info = db
